@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>課堂計時器</title>
+    <title>終極課堂計時器 v7.4</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         
@@ -30,6 +30,8 @@
         }
 
         .canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        #grid-canvas { z-index: 1; }
+        #particle-canvas { z-index: 2; }
         
         .app-screen { display: none; padding: 20px; width: 100%; height: 100%; overflow-y: auto; align-items: center; justify-content: center; position: relative; z-index: 1; }
         .app-screen.active { display: flex; flex-direction: column; animation: screenFadeIn 0.5s ease; }
@@ -42,10 +44,7 @@
         .card { background: var(--card-bg); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border-radius: 24px; border: 1px solid var(--card-border); box-shadow: 0 15px 50px 0 var(--shadow-color); padding: 35px; }
         h2 { font-weight: 600; color: var(--text-color-primary); margin: 0 0 20px; font-size: 1.5em; }
         
-        button, input { border-radius: var(--control-border-radius) !important; font-family: inherit; border: none; }
-        input { background-color: var(--input-bg); border: 1px solid rgba(255,255,255,0.1); padding: 12px 16px; font-size: 1em; width: 100%; color: var(--text-color-primary); }
-        input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.3); }
-        button { font-weight: 600; cursor: pointer; transition: all 0.3s ease; padding: 14px 20px; }
+        button, input { border: none; font-weight: 600; cursor: pointer; transition: all 0.3s ease; border-radius: var(--control-border-radius) !important; padding: 14px 20px; }
         .btn-primary { background: var(--primary-color); color: white; }
         .btn-secondary { background: rgba(255,255,255,0.15); color: var(--text-color-primary); }
         .btn-danger { background: var(--danger-color); color: white; font-size: 1em; padding: 5px 10px; }
@@ -59,37 +58,39 @@
         #add-preset-btn { border: 2px dashed rgba(255,255,255,0.2); background: none; font-size: 2em; }
         
         #timer-screen { text-align: center; position: fixed; top: 0; left: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); }
-        #timer-display { font-family: 'Inter', monospace; font-size: clamp(5em, 25vw, 15em); font-weight: 900; line-height: 1; text-shadow: 0 5px 30px rgba(0,0,0,0.5); }
-        #timer-label { font-size: clamp(1.5em, 5vw, 2.5em); margin-bottom: 20px; color: var(--text-color-secondary); }
+        #timer-display { font-family: 'Inter', monospace; font-size: clamp(5em, 25vw, 15em); font-weight: 900; line-height: 1; text-shadow: 0 0 20px rgba(10, 132, 255, 0.5), 0 5px 30px rgba(0,0,0,0.5); }
+        #timer-label { font-size: clamp(1.5em, 5vw, 2.5em); margin-bottom: 20px; color: var(--text-color-secondary); text-shadow: 0 2px 10px #000; }
         
-        #progress-container { position: absolute; top: 50%; left: 50%; width: 90%; height: 90%; transform: translate(-50%, -50%); z-index: -1; }
+        #progress-container { position: absolute; top: 50%; left: 50%; width: 90%; height: 90%; transform: translate(-50%, -50%); z-index: -1; filter: drop-shadow(0 0 15px rgba(10, 132, 255, 0.4)); }
+        .progress-ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         .progress-ring circle { fill: transparent; stroke-width: 4; }
         #progress-ring-bg { stroke: rgba(255, 255, 255, 0.1); }
-        #progress-ring-circle { stroke: var(--primary-color); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear, stroke 0.5s; filter: drop-shadow(0 0 5px var(--primary-color)); }
+        #progress-ring-circle { stroke: var(--primary-color); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear, stroke 0.5s; }
 
-        #exit-timer-btn { position: absolute; bottom: 5vh; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.1); color: white; }
-        #fullscreen-btn { position: absolute; bottom: 5vh; right: 5vh; background: rgba(255,255,255,0.1); width: 50px; height: 50px; padding: 12px; border-radius: 50%; }
+        .footer-buttons { position: absolute; bottom: 5vh; right: 5vh; display: flex; gap: 15px; }
+        #exit-timer-btn, #fullscreen-btn { background: rgba(255,255,255,0.1); color: white; width: 50px; height: 50px; padding: 12px; border-radius: 50%; }
         #fullscreen-btn svg { width: 100%; height: 100%; fill: white; }
         .icon-contract { display: none; }
 
-        /* 【核心修改 #1】新增 Modal 樣式 */
-        #add-preset-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease; }
+        /* 【核心修改 #1】毛玻璃設定視窗 */
+        #add-preset-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease; }
         #add-preset-modal.visible { display: flex; opacity: 1; }
-        .modal-card { max-width: 450px; width: 90%; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        .modal-card { max-width: 400px; width: 90%; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
         #add-preset-modal.visible .modal-card { transform: scale(1); }
-        .control-group { margin-bottom: 15px; }
         .control-group label { display: block; color: var(--text-color-secondary); font-weight: 500; font-size: 0.9em; margin-bottom: 8px; }
-        .time-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .modal-actions { display: flex; gap: 15px; margin-top: 25px; }
+        .time-inputs { display: flex; gap: 10px; }
+        .time-inputs .control-group { flex: 1; }
+        input[type="text"], input[type="number"] { font-family: inherit; font-size: 1em; width: 100%; background: var(--input-bg); color: var(--text-color-primary); border: 1px solid rgba(255,255,255,0.1); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 25px; }
     </style>
 </head>
 <body>
     
-    <div class="canvas-container"> <canvas id="grid-canvas"></canvas> <canvas id="particle-canvas"></canvas> </div>
+    <div class="canvas-container"><canvas id="grid-canvas"></canvas><canvas id="particle-canvas"></canvas></div>
 
     <div id="setup-screen" class="app-screen active">
         <div class="container">
-            <div class="header"><h1>終極課堂計時器</h1></div>
+            <div class="header"><h1>課堂計時器</h1></div>
             <div class="card">
                 <h2>選擇一個計時器或新增</h2>
                 <div id="presets-grid"><button id="add-preset-btn" title="新增預設">+</button></div>
@@ -98,17 +99,24 @@
     </div>
     
     <div id="timer-screen" class="app-screen">
-        <div id="progress-container"><svg class="progress-ring" viewBox="0 0 100 100"><circle id="progress-ring-bg" cx="50" cy="50" r="45"/><circle id="progress-ring-circle" cx="50" cy="50" r="45"/></svg></div>
+        <div id="progress-container">
+            <svg class="progress-ring" viewBox="0 0 100 100"><circle id="progress-ring-bg" cx="50" cy="50" r="45"/><circle id="progress-ring-circle" cx="50" cy="50" r="45"/></svg>
+        </div>
         <div><h2 id="timer-label"></h2><div id="timer-display"></div></div>
-        <button id="exit-timer-btn">結束倒數</button>
-        <button id="fullscreen-btn" title="全螢幕"><svg class="icon-expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg><svg class="icon-contract" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg></button>
+        <div class="footer-buttons">
+            <button id="exit-timer-btn" title="結束倒數">⏹</button>
+            <button id="fullscreen-btn" title="全螢幕">
+                <svg class="icon-expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                <svg class="icon-contract" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+            </button>
+        </div>
     </div>
 
-    <!-- 【核心修改 #2】新增 Modal 的 HTML 結構 -->
+    <!-- 【核心修改 #2】新增計時器的毛玻璃視窗 HTML -->
     <div id="add-preset-modal">
         <div class="card modal-card">
-            <h2>新增計時預設</h2>
-            <div class="control-group">
+            <h2>新增計時器</h2>
+            <div class="control-group" style="margin-bottom: 15px;">
                 <label for="preset-label-input">任務標籤</label>
                 <input type="text" id="preset-label-input" placeholder="例如：小組討論">
             </div>
@@ -148,15 +156,14 @@
             const fullscreenBtn = document.getElementById('fullscreen-btn');
             const iconExpand = fullscreenBtn.querySelector('.icon-expand');
             const iconContract = fullscreenBtn.querySelector('.icon-contract');
-            
             // Modal elements
             const addPresetModal = document.getElementById('add-preset-modal');
-            const modalLabelInput = document.getElementById('preset-label-input');
-            const modalMinutesInput = document.getElementById('preset-minutes-input');
-            const modalSecondsInput = document.getElementById('preset-seconds-input');
-            const confirmAddBtn = document.getElementById('confirm-add-btn');
+            const presetLabelInput = document.getElementById('preset-label-input');
+            const presetMinutesInput = document.getElementById('preset-minutes-input');
+            const presetSecondsInput = document.getElementById('preset-seconds-input');
             const cancelAddBtn = document.getElementById('cancel-add-btn');
-
+            const confirmAddBtn = document.getElementById('confirm-add-btn');
+            
             const radius = progressRingCircle.r.baseVal.value;
             const circumference = 2 * Math.PI * radius;
             
@@ -170,27 +177,27 @@
                 presets.forEach((preset, index) => {
                     const btn = document.createElement('button');
                     btn.className = 'preset-btn';
-                    btn.innerHTML = `<span class="time">${String(preset.minutes).padStart(2, '0')}:${String(preset.seconds).padStart(2, '0')}</span><span class="label">${preset.label}</span><button class="btn-danger delete-preset" data-index="${index}">&times;</button>`;
-                    btn.addEventListener('click', (e) => { if (e.target.classList.contains('delete-preset')) { e.stopPropagation(); if (confirm(`確定要刪除「${preset.label}」嗎？`)) { presets.splice(index, 1); saveData(); renderPresets(); } } else { startTimer(preset); } });
+                    btn.innerHTML = `<span class="time">${String(preset.minutes).padStart(2, '0')}:${String(preset.seconds).padStart(2, '0')}</span><span class="label">${preset.label}</span><button class="btn-danger delete-preset" data-index="${index}">×</button>`;
+                    btn.addEventListener('click', (e) => {
+                        if (e.target.classList.contains('delete-preset')) {
+                            e.stopPropagation();
+                            if (confirm(`確定要刪除「${preset.label}」嗎？`)) { presets.splice(index, 1); saveData(); renderPresets(); }
+                        } else { startTimer(preset); }
+                    });
                     presetsGrid.insertBefore(btn, addPresetBtn);
                 });
             };
-            
-            // 【核心修改 #3】重寫新增邏輯
-            const showAddModal = () => addPresetModal.classList.add('visible');
-            const hideAddModal = () => {
-                addPresetModal.classList.remove('visible');
-                setTimeout(() => { modalLabelInput.value = ''; modalMinutesInput.value = '5'; modalSecondsInput.value = '0'; }, 300);
+
+            const addPreset = () => {
+                const label = presetLabelInput.value.trim();
+                const minutes = parseInt(presetMinutesInput.value, 10);
+                const seconds = parseInt(presetSecondsInput.value, 10);
+                if (!label || isNaN(minutes) || isNaN(seconds)) { alert('請輸入有效的標籤和時間！'); return; }
+                presets.push({ label, minutes, seconds }); saveData(); renderPresets(); closeModal();
             };
-            
-            const confirmAddPreset = () => {
-                const label = modalLabelInput.value.trim();
-                if (!label) { alert('請輸入任務標籤！'); return; }
-                const minutes = parseInt(modalMinutesInput.value, 10);
-                const seconds = parseInt(modalSecondsInput.value, 10);
-                if (isNaN(minutes) || isNaN(seconds)) { alert('請輸入有效的數字！'); return; }
-                presets.push({ label, minutes, seconds }); saveData(); renderPresets(); hideAddModal();
-            };
+
+            const showModal = () => { presetLabelInput.value = ''; presetMinutesInput.value = 5; presetSecondsInput.value = 0; addPresetModal.classList.add('visible'); };
+            const closeModal = () => addPresetModal.classList.remove('visible');
 
             const switchScreen = (screenName) => { Object.values(screens).forEach(s => s.classList.remove('active')); screens[screenName].classList.add('active'); };
 
@@ -201,8 +208,16 @@
                 timerLabel.textContent = preset.label;
                 progressRingCircle.style.stroke = 'var(--primary-color)';
                 startSound.play();
-                const updateDisplay = () => { const minutes = Math.floor(remainingSeconds / 60); const seconds = remainingSeconds % 60; timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; const progress = remainingSeconds / totalSeconds; progressRingCircle.style.strokeDashoffset = circumference * (1 - progress); if (remainingSeconds === 5) { hurryUpSound.play(); } };
-                updateDisplay(); switchScreen('timer');
+                const updateDisplay = () => {
+                    const minutes = Math.floor(remainingSeconds / 60);
+                    const seconds = remainingSeconds % 60;
+                    timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    const progress = remainingSeconds / totalSeconds;
+                    progressRingCircle.style.strokeDashoffset = circumference * (1 - progress);
+                    if (remainingSeconds === 5) { hurryUpSound.play(); }
+                };
+                updateDisplay();
+                switchScreen('timer');
                 timerInterval = setInterval(() => { remainingSeconds--; updateDisplay(); if (remainingSeconds < 0) { finishTimer(); } }, 1000);
             };
 
@@ -210,19 +225,20 @@
             const exitTimer = () => { clearInterval(timerInterval); switchScreen('setup'); };
             const toggleFullScreen = () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen?.(); } else { document.exitFullscreen?.(); } };
             const updateFullscreenIcon = () => { if(document.fullscreenElement) { iconExpand.style.display = 'none'; iconContract.style.display = 'block'; } else { iconExpand.style.display = 'block'; iconContract.style.display = 'none'; } };
-            
+
             progressRingCircle.style.strokeDasharray = `${circumference} ${circumference}`;
             progressRingCircle.style.strokeDashoffset = circumference;
-            addPresetBtn.addEventListener('click', showAddModal);
-            confirmAddBtn.addEventListener('click', confirmAddPreset);
-            cancelAddBtn.addEventListener('click', hideAddModal);
-            addPresetModal.addEventListener('click', (e) => { if (e.target === addPresetModal) hideAddModal(); });
+            addPresetBtn.addEventListener('click', showModal);
+            cancelAddBtn.addEventListener('click', closeModal);
+            confirmAddBtn.addEventListener('click', addPreset);
             exitTimerBtn.addEventListener('click', exitTimer);
             fullscreenBtn.addEventListener('click', toggleFullScreen);
             document.addEventListener('fullscreenchange', updateFullscreenIcon);
             loadData();
 
-            const gridCanvas = document.getElementById('grid-canvas'); const gridCtx = gridCanvas.getContext('2d'); const particleCanvas = document.getElementById('particle-canvas'); const particleCtx = particleCanvas.getContext('2d'); let particles = []; let gridOffset = 0;
+            const gridCanvas = document.getElementById('grid-canvas'); const gridCtx = gridCanvas.getContext('2d');
+            const particleCanvas = document.getElementById('particle-canvas'); const particleCtx = particleCanvas.getContext('2d');
+            let particles = []; let gridOffset = 0;
             function resizeCanvases() { gridCanvas.width = particleCanvas.width = window.innerWidth; gridCanvas.height = particleCanvas.height = window.innerHeight; }
             class Particle { constructor() { this.x = Math.random() * particleCanvas.width; this.y = Math.random() * particleCanvas.height; this.size = Math.random() * 2 + 0.5; this.speedY = Math.random() * 0.5 + 0.1; this.opacity = Math.random() * 0.5 + 0.1; } update() { this.y -= this.speedY; if (this.y < 0) { this.y = particleCanvas.height; this.x = Math.random() * particleCanvas.width; } } draw() { particleCtx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`; particleCtx.beginPath(); particleCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2); particleCtx.fill(); } }
             function initParticles() { particles = []; const numberOfParticles = (particleCanvas.width * particleCanvas.height) / 15000; for (let i = 0; i < numberOfParticles; i++) particles.push(new Particle()); }
